@@ -2,30 +2,30 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Starship Defender - Bottom Anchor</title>
+    <title>Starship Defender</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #050505; font-family: 'Courier New', monospace; color: #00ff00; }
+        body { margin: 0; overflow: hidden; background: #020205; font-family: 'Courier New', monospace; color: #00ffcc; }
         canvas { display: block; }
-        #ui { position: absolute; top: 20px; left: 20px; pointer-events: none; }
-        .stat-box { margin-bottom: 5px; font-weight: bold; font-size: 1.2rem; }
+        #ui { position: absolute; top: 20px; left: 20px; pointer-events: none; text-shadow: 0 0 5px #00ffcc; }
+        .stat { font-size: 1.5rem; margin-bottom: 5px; }
         #game-over { 
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            text-align: center; display: none; background: rgba(0,0,0,0.8); padding: 20px; border: 2px solid #00ff00;
+            text-align: center; display: none; background: rgba(0,0,0,0.9); padding: 40px; border: 2px solid #ff0055;
         }
     </style>
 </head>
 <body>
 
 <div id="ui">
-    <div class="stat-box">SCR > <span id="score">0</span></div>
-    <div class="stat-box">LIV > <span id="lives">5</span></div>
-    <div class="stat-box" style="color: #ffaa00;">SPD > <span id="speedDisplay">1.0</span>x</div>
+    <div class="stat">SCORE: <span id="score">0</span></div>
+    <div class="stat">LIVES: <span id="lives">5</span></div>
+    <div class="stat" style="color: #ff0055;">THRUST: <span id="speedDisplay">1.0</span>x</div>
 </div>
 
 <div id="game-over">
-    <h1 style="color: #ff0000;">SYSTEM CRASHED</h1>
-    <p>FINAL SCORE: <span id="finalScore">0</span></p>
-    <p>PRESS 'R' TO REBOOT</p>
+    <h1 style="color: #ff0055; font-size: 3rem;">HULL BREACHED</h1>
+    <p>MISSION ENDED. SCORE: <span id="finalScore">0</span></p>
+    <p>PRESS 'R' TO RESTART SYSTEM</p>
 </div>
 
 <canvas id="gameCanvas"></canvas>
@@ -38,202 +38,164 @@ let score = 0;
 let lives = 5;
 let gameOver = false;
 let globalSpeedMult = 1.0;
-let spawnTimer = 0;
-
-const keys = {};
-let lasers = [];
+let stars = [];
 let rocks = [];
+let lasers = [];
+const keys = {};
+
+// Create background stars
+for(let i=0; i<100; i++) {
+    stars.push({ x: Math.random() * window.innerWidth, y: Math.random() * window.innerHeight, size: Math.random() * 2, speed: Math.random() * 2 + 1 });
+}
 
 class Ship {
     constructor() {
-        this.w = 50;
-        this.h = 40;
-        this.x = 0; // Set in init/resize
-        this.y = 0; // Set in init/resize
-        this.speed = 8;
+        this.w = 40;
+        this.h = 45;
+        this.speed = 10;
+        this.setInitialPos();
     }
-
-    resetPos() {
+    setInitialPos() {
         this.x = canvas.width / 2 - this.w / 2;
-        this.y = canvas.height - this.h - 20; // Anchored 20px from bottom
+        this.y = canvas.height - this.h - 20; // Anchor to bottom
     }
-
     draw() {
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = "#00ffff";
-        ctx.fillStyle = "#00ffff";
-        // Classic Starship Polygon
+        ctx.fillStyle = "#00ffcc";
         ctx.beginPath();
-        ctx.moveTo(this.x + this.w / 2, this.y); // Nose
+        ctx.moveTo(this.x + this.w/2, this.y); // Nose
         ctx.lineTo(this.x, this.y + this.h);     // Left wing
-        ctx.lineTo(this.x + this.w / 2, this.y + this.h - 10); // Rear notch
         ctx.lineTo(this.x + this.w, this.y + this.h); // Right wing
         ctx.closePath();
         ctx.fill();
-        ctx.shadowBlur = 0;
+        // Engine glow
+        ctx.fillStyle = "#ffaa00";
+        ctx.fillRect(this.x + this.w/2 - 5, this.y + this.h, 10, 5);
     }
-
     update() {
         if (keys['ArrowLeft'] && this.x > 0) this.x -= this.speed;
         if (keys['ArrowRight'] && this.x < canvas.width - this.w) this.x += this.speed;
     }
 }
 
-class Laser {
-    constructor(x, y) {
-        this.x = x;
-        this.y = y;
-        this.speed = 12;
-    }
-    draw() {
-        ctx.fillStyle = "#ff00ff";
-        ctx.fillRect(this.x - 2, this.y, 4, 15);
-    }
-    update() { this.y -= this.speed; }
-}
-
 class Rock {
     constructor(x, y, radius, level) {
         this.x = x || Math.random() * canvas.width;
-        this.y = y || -50;
-        this.radius = radius || 35 + Math.random() * 15;
-        this.level = level || 2; // 2=Large, 1=Small
-        this.vx = (Math.random() - 0.5) * 3;
-        this.vy = (Math.random() * 2 + 1.5) * globalSpeedMult;
-        this.rotation = 0;
-        this.rotSpeed = (Math.random() - 0.5) * 0.1;
+        this.y = y || -100;
+        this.radius = radius || 30 + Math.random() * 20;
+        this.level = level || 2; // 2 = big, 1 = fragment
+        this.vy = (Math.random() * 2 + 1) * globalSpeedMult;
+        this.vx = (Math.random() - 0.5) * 2;
     }
-
-    draw() {
-        ctx.strokeStyle = this.level === 2 ? "#ffffff" : "#ffaa00";
-        ctx.lineWidth = 2;
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.rotate(this.rotation);
-        
-        // Jagged Rock Shape
-        ctx.beginPath();
-        for(let i=0; i<8; i++) {
-            const angle = (i / 8) * Math.PI * 2;
-            const r = this.radius * (0.8 + Math.random() * 0.2);
-            const dx = Math.cos(angle) * r;
-            const dy = Math.sin(angle) * r;
-            if(i === 0) ctx.moveTo(dx, dy); else ctx.lineTo(dx, dy);
-        }
-        ctx.closePath();
-        ctx.stroke();
-        ctx.restore();
-    }
-
     update() {
-        this.x += this.vx;
         this.y += this.vy;
-        this.rotation += this.rotSpeed;
+        this.x += this.vx;
+    }
+    draw() {
+        ctx.strokeStyle = this.level === 2 ? "#fff" : "#ff0055";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.stroke();
     }
 }
 
-const ship = new Ship();
+const player = new Ship();
 
-function init() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    ship.resetPos();
+function handleInput() {
+    window.addEventListener('keydown', e => {
+        keys[e.code] = true;
+        if (e.code === 'Space' && !gameOver) lasers.push({ x: player.x + player.w/2, y: player.y, speed: 15 });
+        if (e.code === 'KeyR' && gameOver) resetGame();
+    });
+    window.addEventListener('keyup', e => keys[e.code] = false);
 }
 
-window.addEventListener('resize', init);
-window.addEventListener('keydown', e => {
-    keys[e.code] = true;
-    if (e.code === 'Space' && !gameOver) {
-        lasers.push(new Laser(ship.x + ship.w / 2, ship.y));
-    }
-    if (e.code === 'KeyR' && gameOver) reboot();
-});
-window.addEventListener('keyup', e => keys[e.code] = false);
-
-function reboot() {
+function resetGame() {
     score = 0; lives = 5; globalSpeedMult = 1.0;
     rocks = []; lasers = []; gameOver = false;
     document.getElementById('game-over').style.display = 'none';
-    document.getElementById('score').innerText = score;
-    document.getElementById('lives').innerText = lives;
-    document.getElementById('speedDisplay').innerText = "1.0";
+    player.setInitialPos();
     loop();
 }
 
 function loop() {
     if (gameOver) return;
-
-    ctx.fillStyle = 'rgba(5, 5, 5, 0.3)'; // Trail effect
+    ctx.fillStyle = "#020205";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ship.update();
-    ship.draw();
+    // Starfield background
+    ctx.fillStyle = "#fff";
+    stars.forEach(s => {
+        s.y += s.speed * globalSpeedMult;
+        if (s.y > canvas.height) s.y = 0;
+        ctx.fillRect(s.x, s.y, s.size, s.size);
+    });
 
-    // Rock Spawning (faster as speed increases)
-    spawnTimer++;
-    if (spawnTimer > Math.max(10, 60 / globalSpeedMult)) {
-        rocks.push(new Rock());
-        spawnTimer = 0;
-    }
+    player.update();
+    player.draw();
 
-    // Process Lasers
-    for (let i = lasers.length - 1; i >= 0; i--) {
-        lasers[i].update();
-        lasers[i].draw();
-        if (lasers[i].y < 0) lasers.splice(i, 1);
-    }
+    // Spawn rocks
+    if (Math.random() < 0.02 * globalSpeedMult) rocks.push(new Rock());
 
-    // Process Rocks
-    for (let i = rocks.length - 1; i >= 0; i--) {
-        const r = rocks[i];
+    // Update Lasers
+    lasers.forEach((l, i) => {
+        l.y -= l.speed;
+        ctx.fillStyle = "#ff0055";
+        ctx.fillRect(l.x - 2, l.y, 4, 15);
+        if (l.y < 0) lasers.splice(i, 1);
+    });
+
+    // Update Rocks
+    rocks.forEach((r, i) => {
         r.update();
         r.draw();
 
-        // 1. Check Floor
-        if (r.y > canvas.height + 50) {
-            rocks.splice(i, 1);
-            continue;
-        }
-
-        // 2. Collision with Ship
-        const distToShip = Math.hypot((ship.x + ship.w/2) - r.x, (ship.y + ship.h/2) - r.y);
+        // COLLISION: Rock hits Player
+        const distToShip = Math.hypot((player.x + player.w/2) - r.x, (player.y + player.h/2) - r.y);
         if (distToShip < r.radius + 15) {
             rocks.splice(i, 1);
             lives--;
-            globalSpeedMult += 0.3; // Speed up on damage!
-            document.getElementById('lives').innerText = lives;
-            document.getElementById('speedDisplay').innerText = globalSpeedMult.toFixed(1);
-            if (lives <= 0) {
-                gameOver = true;
-                document.getElementById('finalScore').innerText = score;
-                document.getElementById('game-over').style.display = 'block';
-            }
-            continue;
+            globalSpeedMult += 0.2; // Speed up after damage
+            updateUI();
+            if (lives <= 0) endGame();
         }
 
-        // 3. Collision with Lasers
-        for (let j = lasers.length - 1; j >= 0; j--) {
-            const l = lasers[j];
+        // COLLISION: Laser hits Rock
+        lasers.forEach((l, li) => {
             const dist = Math.hypot(l.x - r.x, l.y - r.y);
             if (dist < r.radius) {
-                // Break Rock
-                if (r.level > 1) {
-                    rocks.push(new Rock(r.x, r.y, r.radius * 0.6, 1));
-                    rocks.push(new Rock(r.x, r.y, r.radius * 0.6, 1));
+                if (r.level === 2) {
+                    rocks.push(new Rock(r.x, r.y, r.radius/2, 1));
+                    rocks.push(new Rock(r.x, r.y, r.radius/2, 1));
                 }
                 rocks.splice(i, 1);
-                lasers.splice(j, 1);
-                score += (r.level === 2) ? 10 : 20;
-                document.getElementById('score').innerText = score;
-                break;
+                lasers.splice(li, 1);
+                score += 10;
+                updateUI();
             }
-        }
-    }
+        });
+
+        if (r.y > canvas.height + 100) rocks.splice(i, 1);
+    });
 
     requestAnimationFrame(loop);
 }
 
-init();
+function updateUI() {
+    document.getElementById('score').innerText = score;
+    document.getElementById('lives').innerText = lives;
+    document.getElementById('speedDisplay').innerText = globalSpeedMult.toFixed(1);
+}
+
+function endGame() {
+    gameOver = true;
+    document.getElementById('finalScore').innerText = score;
+    document.getElementById('game-over').style.display = 'block';
+}
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+handleInput();
 loop();
 </script>
 </body>
