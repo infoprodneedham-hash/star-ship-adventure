@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <title>Starship Defender</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #020205; font-family: 'Courier New', monospace; color: #00ffcc; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; color: #00ffcc; }
         canvas { display: block; }
-        #ui { position: absolute; top: 20px; left: 20px; pointer-events: none; text-shadow: 0 0 5px #00ffcc; }
+        #ui { position: absolute; top: 20px; left: 20px; pointer-events: none; }
         .stat { font-size: 1.5rem; margin-bottom: 5px; }
         #game-over { 
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
@@ -19,13 +19,13 @@
 <div id="ui">
     <div class="stat">SCORE: <span id="score">0</span></div>
     <div class="stat">LIVES: <span id="lives">5</span></div>
-    <div class="stat" style="color: #ff0055;">THRUST: <span id="speedDisplay">1.0</span>x</div>
+    <div class="stat" style="color: #ff0055;">SPEED: <span id="speedDisplay">1.0</span>x</div>
 </div>
 
 <div id="game-over">
-    <h1 style="color: #ff0055; font-size: 3rem;">HULL BREACHED</h1>
-    <p>MISSION ENDED. SCORE: <span id="finalScore">0</span></p>
-    <p>PRESS 'R' TO RESTART SYSTEM</p>
+    <h1 style="color: #ff0055; font-size: 3rem;">SYSTEM FAILURE</h1>
+    <p>FINAL SCORE: <span id="finalScore">0</span></p>
+    <p>PRESS 'R' TO REBOOT</p>
 </div>
 
 <canvas id="gameCanvas"></canvas>
@@ -44,46 +44,48 @@ let lasers = [];
 const keys = {};
 
 // Create background stars
-for(let i=0; i<100; i++) {
-    stars.push({ x: Math.random() * window.innerWidth, y: Math.random() * window.innerHeight, size: Math.random() * 2, speed: Math.random() * 2 + 1 });
+function initStars() {
+    stars = [];
+    for(let i=0; i<80; i++) {
+        stars.push({ 
+            x: Math.random() * window.innerWidth, 
+            y: Math.random() * window.innerHeight, 
+            size: Math.random() * 2, 
+            speed: Math.random() * 3 + 1 
+        });
+    }
 }
 
 class Ship {
     constructor() {
         this.w = 40;
-        this.h = 45;
-        this.speed = 10;
-        this.setInitialPos();
+        this.h = 40;
+        this.speed = 12;
+        this.y = 0; 
+        this.x = 0;
     }
-    setInitialPos() {
+    updatePos() {
         this.x = canvas.width / 2 - this.w / 2;
-        this.y = canvas.height - this.h - 20; // Anchor to bottom
+        this.y = canvas.height - this.h - 30; // 30px from bottom
     }
     draw() {
         ctx.fillStyle = "#00ffcc";
         ctx.beginPath();
-        ctx.moveTo(this.x + this.w/2, this.y); // Nose
-        ctx.lineTo(this.x, this.y + this.h);     // Left wing
-        ctx.lineTo(this.x + this.w, this.y + this.h); // Right wing
+        ctx.moveTo(this.x + this.w/2, this.y); 
+        ctx.lineTo(this.x, this.y + this.h);     
+        ctx.lineTo(this.x + this.w, this.y + this.h); 
         ctx.closePath();
         ctx.fill();
-        // Engine glow
-        ctx.fillStyle = "#ffaa00";
-        ctx.fillRect(this.x + this.w/2 - 5, this.y + this.h, 10, 5);
-    }
-    update() {
-        if (keys['ArrowLeft'] && this.x > 0) this.x -= this.speed;
-        if (keys['ArrowRight'] && this.x < canvas.width - this.w) this.x += this.speed;
     }
 }
 
 class Rock {
     constructor(x, y, radius, level) {
         this.x = x || Math.random() * canvas.width;
-        this.y = y || -100;
+        this.y = y || -50;
         this.radius = radius || 30 + Math.random() * 20;
-        this.level = level || 2; // 2 = big, 1 = fragment
-        this.vy = (Math.random() * 2 + 1) * globalSpeedMult;
+        this.level = level || 2; 
+        this.vy = (Math.random() * 2 + 2) * globalSpeedMult;
         this.vx = (Math.random() - 0.5) * 2;
     }
     update() {
@@ -104,7 +106,9 @@ const player = new Ship();
 function handleInput() {
     window.addEventListener('keydown', e => {
         keys[e.code] = true;
-        if (e.code === 'Space' && !gameOver) lasers.push({ x: player.x + player.w/2, y: player.y, speed: 15 });
+        if (e.code === 'Space' && !gameOver) {
+            lasers.push({ x: player.x + player.w/2, y: player.y, speed: 15 });
+        }
         if (e.code === 'KeyR' && gameOver) resetGame();
     });
     window.addEventListener('keyup', e => keys[e.code] = false);
@@ -114,16 +118,15 @@ function resetGame() {
     score = 0; lives = 5; globalSpeedMult = 1.0;
     rocks = []; lasers = []; gameOver = false;
     document.getElementById('game-over').style.display = 'none';
-    player.setInitialPos();
+    updateUI();
     loop();
 }
 
 function loop() {
     if (gameOver) return;
-    ctx.fillStyle = "#020205";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Starfield background
+    // 1. Draw/Update Stars
     ctx.fillStyle = "#fff";
     stars.forEach(s => {
         s.y += s.speed * globalSpeedMult;
@@ -131,37 +134,46 @@ function loop() {
         ctx.fillRect(s.x, s.y, s.size, s.size);
     });
 
-    player.update();
+    // 2. Ship Movement
+    if (keys['ArrowLeft'] && player.x > 0) player.x -= player.speed;
+    if (keys['ArrowRight'] && player.x < canvas.width - player.w) player.x += player.speed;
     player.draw();
 
-    // Spawn rocks
-    if (Math.random() < 0.02 * globalSpeedMult) rocks.push(new Rock());
+    // 3. Spawn rocks
+    if (Math.random() < 0.015 * globalSpeedMult) rocks.push(new Rock());
 
-    // Update Lasers
-    lasers.forEach((l, i) => {
-        l.y -= l.speed;
+    // 4. Update Lasers
+    for(let i = lasers.length -1; i >= 0; i--) {
+        lasers[i].y -= lasers[i].speed;
         ctx.fillStyle = "#ff0055";
-        ctx.fillRect(l.x - 2, l.y, 4, 15);
-        if (l.y < 0) lasers.splice(i, 1);
-    });
+        ctx.fillRect(lasers[i].x - 2, lasers[i].y, 4, 15);
+        if (lasers[i].y < 0) lasers.splice(i, 1);
+    }
 
-    // Update Rocks
-    rocks.forEach((r, i) => {
+    // 5. Update Rocks & Collision
+    for(let i = rocks.length -1; i >= 0; i--) {
+        let r = rocks[i];
         r.update();
         r.draw();
 
-        // COLLISION: Rock hits Player
+        // INSTANT DEATH COLLISION: Rock hits Ship
         const distToShip = Math.hypot((player.x + player.w/2) - r.x, (player.y + player.h/2) - r.y);
         if (distToShip < r.radius + 15) {
-            rocks.splice(i, 1);
+            rocks.splice(i, 1); // Remove the rock that hit you
             lives--;
-            globalSpeedMult += 0.2; // Speed up after damage
+            globalSpeedMult += 0.2; // Game gets harder on life loss
             updateUI();
-            if (lives <= 0) endGame();
+            if (lives <= 0) {
+                gameOver = true;
+                document.getElementById('finalScore').innerText = score;
+                document.getElementById('game-over').style.display = 'block';
+            }
+            continue;
         }
 
-        // COLLISION: Laser hits Rock
-        lasers.forEach((l, li) => {
+        // Laser hits Rock
+        for(let j = lasers.length -1; j >= 0; j--) {
+            let l = lasers[j];
             const dist = Math.hypot(l.x - r.x, l.y - r.y);
             if (dist < r.radius) {
                 if (r.level === 2) {
@@ -169,14 +181,15 @@ function loop() {
                     rocks.push(new Rock(r.x, r.y, r.radius/2, 1));
                 }
                 rocks.splice(i, 1);
-                lasers.splice(li, 1);
+                lasers.splice(j, 1);
                 score += 10;
                 updateUI();
+                break;
             }
-        });
+        }
 
-        if (r.y > canvas.height + 100) rocks.splice(i, 1);
-    });
+        if (r.y > canvas.height + 50) rocks.splice(i, 1);
+    }
 
     requestAnimationFrame(loop);
 }
@@ -187,14 +200,18 @@ function updateUI() {
     document.getElementById('speedDisplay').innerText = globalSpeedMult.toFixed(1);
 }
 
-function endGame() {
-    gameOver = true;
-    document.getElementById('finalScore').innerText = score;
-    document.getElementById('game-over').style.display = 'block';
-}
+window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    player.updatePos();
+    initStars();
+});
 
+// Start
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
+player.updatePos();
+initStars();
 handleInput();
 loop();
 </script>
