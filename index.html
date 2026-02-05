@@ -2,30 +2,30 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Starship Defender</title>
+    <title>Starship Defender - Hardcore</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; color: #00ffcc; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; color: #00ff00; }
         canvas { display: block; }
         #ui { position: absolute; top: 20px; left: 20px; pointer-events: none; }
-        .stat { font-size: 1.5rem; margin-bottom: 5px; }
+        .stat-box { margin-bottom: 5px; font-weight: bold; font-size: 1.2rem; text-shadow: 0 0 5px #00ff00; }
         #game-over { 
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            text-align: center; display: none; background: rgba(0,0,0,0.9); padding: 40px; border: 2px solid #ff0055;
+            text-align: center; display: none; background: rgba(0,0,0,0.9); padding: 30px; border: 2px solid #ff0000;
         }
     </style>
 </head>
 <body>
 
 <div id="ui">
-    <div class="stat">SCORE: <span id="score">0</span></div>
-    <div class="stat">LIVES: <span id="lives">5</span></div>
-    <div class="stat" style="color: #ff0055;">SPEED: <span id="speedDisplay">1.0</span>x</div>
+    <div class="stat-box">SCORE > <span id="score">0</span></div>
+    <div class="stat-box">LIVES > <span id="lives">5</span></div>
+    <div class="stat-box" style="color: #ffaa00;">WARP  > <span id="speedDisplay">1.0</span>x</div>
 </div>
 
 <div id="game-over">
-    <h1 style="color: #ff0055; font-size: 3rem;">SYSTEM FAILURE</h1>
+    <h1 style="color: #ff0000;">HULL BREACHED</h1>
     <p>FINAL SCORE: <span id="finalScore">0</span></p>
-    <p>PRESS 'R' TO REBOOT</p>
+    <p>PRESS 'R' TO REBOOT SYSTEM</p>
 </div>
 
 <canvas id="gameCanvas"></canvas>
@@ -38,44 +38,39 @@ let score = 0;
 let lives = 5;
 let gameOver = false;
 let globalSpeedMult = 1.0;
-let stars = [];
-let rocks = [];
-let lasers = [];
-const keys = {};
+let spawnTimer = 0;
 
-// Create background stars
-function initStars() {
-    stars = [];
-    for(let i=0; i<80; i++) {
-        stars.push({ 
-            x: Math.random() * window.innerWidth, 
-            y: Math.random() * window.innerHeight, 
-            size: Math.random() * 2, 
-            speed: Math.random() * 3 + 1 
-        });
-    }
-}
+const keys = {};
+let lasers = [];
+let rocks = [];
+let stars = [];
 
 class Ship {
     constructor() {
-        this.w = 40;
+        this.w = 50;
         this.h = 40;
-        this.speed = 12;
-        this.y = 0; 
-        this.x = 0;
+        this.speed = 10;
+        this.resetPos();
     }
-    updatePos() {
+    resetPos() {
         this.x = canvas.width / 2 - this.w / 2;
-        this.y = canvas.height - this.h - 30; // 30px from bottom
+        this.y = canvas.height - this.h - 30; // Solidly anchored at bottom
     }
     draw() {
-        ctx.fillStyle = "#00ffcc";
+        ctx.fillStyle = "#00ffff";
         ctx.beginPath();
-        ctx.moveTo(this.x + this.w/2, this.y); 
-        ctx.lineTo(this.x, this.y + this.h);     
-        ctx.lineTo(this.x + this.w, this.y + this.h); 
+        ctx.moveTo(this.x + this.w / 2, this.y);
+        ctx.lineTo(this.x, this.y + this.h);
+        ctx.lineTo(this.x + this.w, this.y + this.h);
         ctx.closePath();
         ctx.fill();
+        // Engine Flare
+        ctx.fillStyle = "#ffaa00";
+        ctx.fillRect(this.x + this.w/2 - 5, this.y + this.h, 10, 4);
+    }
+    update() {
+        if (keys['ArrowLeft'] && this.x > 0) this.x -= this.speed;
+        if (keys['ArrowRight'] && this.x < canvas.width - this.w) this.x += this.speed;
     }
 }
 
@@ -85,36 +80,54 @@ class Rock {
         this.y = y || -50;
         this.radius = radius || 30 + Math.random() * 20;
         this.level = level || 2; 
-        this.vy = (Math.random() * 2 + 2) * globalSpeedMult;
         this.vx = (Math.random() - 0.5) * 2;
-    }
-    update() {
-        this.y += this.vy;
-        this.x += this.vx;
+        this.vy = (Math.random() * 2 + 2) * globalSpeedMult;
     }
     draw() {
-        ctx.strokeStyle = this.level === 2 ? "#fff" : "#ff0055";
+        ctx.strokeStyle = this.level === 2 ? "#ffffff" : "#ff4444";
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.stroke();
     }
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+    }
 }
 
-const player = new Ship();
-
-function handleInput() {
-    window.addEventListener('keydown', e => {
-        keys[e.code] = true;
-        if (e.code === 'Space' && !gameOver) {
-            lasers.push({ x: player.x + player.w/2, y: player.y, speed: 15 });
-        }
-        if (e.code === 'KeyR' && gameOver) resetGame();
-    });
-    window.addEventListener('keyup', e => keys[e.code] = false);
+function initStars() {
+    stars = [];
+    for(let i=0; i<100; i++) {
+        stars.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            size: Math.random() * 2,
+            speed: Math.random() * 3 + 1
+        });
+    }
 }
 
-function resetGame() {
+const ship = new Ship();
+
+function init() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    ship.resetPos();
+    initStars();
+}
+
+window.addEventListener('resize', init);
+window.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if (e.code === 'Space' && !gameOver) {
+        lasers.push({ x: ship.x + ship.w / 2, y: ship.y, speed: 14 });
+    }
+    if (e.code === 'KeyR' && gameOver) reboot();
+});
+window.addEventListener('keyup', e => keys[e.code] = false);
+
+function reboot() {
     score = 0; lives = 5; globalSpeedMult = 1.0;
     rocks = []; lasers = []; gameOver = false;
     document.getElementById('game-over').style.display = 'none';
@@ -122,11 +135,19 @@ function resetGame() {
     loop();
 }
 
+function updateUI() {
+    document.getElementById('score').innerText = score;
+    document.getElementById('lives').innerText = lives;
+    document.getElementById('speedDisplay').innerText = globalSpeedMult.toFixed(1);
+}
+
 function loop() {
     if (gameOver) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 1. Draw/Update Stars
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 1. Move/Draw Stars
     ctx.fillStyle = "#fff";
     stars.forEach(s => {
         s.y += s.speed * globalSpeedMult;
@@ -134,34 +155,36 @@ function loop() {
         ctx.fillRect(s.x, s.y, s.size, s.size);
     });
 
-    // 2. Ship Movement
-    if (keys['ArrowLeft'] && player.x > 0) player.x -= player.speed;
-    if (keys['ArrowRight'] && player.x < canvas.width - player.w) player.x += player.speed;
-    player.draw();
+    ship.update();
+    ship.draw();
 
-    // 3. Spawn rocks
-    if (Math.random() < 0.015 * globalSpeedMult) rocks.push(new Rock());
+    // 2. Spawn Rocks
+    spawnTimer++;
+    if (spawnTimer > 40 / globalSpeedMult) {
+        rocks.push(new Rock());
+        spawnTimer = 0;
+    }
 
-    // 4. Update Lasers
-    for(let i = lasers.length -1; i >= 0; i--) {
+    // 3. Lasers
+    for (let i = lasers.length - 1; i >= 0; i--) {
         lasers[i].y -= lasers[i].speed;
-        ctx.fillStyle = "#ff0055";
+        ctx.fillStyle = "#ff00ff";
         ctx.fillRect(lasers[i].x - 2, lasers[i].y, 4, 15);
         if (lasers[i].y < 0) lasers.splice(i, 1);
     }
 
-    // 5. Update Rocks & Collision
-    for(let i = rocks.length -1; i >= 0; i--) {
-        let r = rocks[i];
+    // 4. Rocks & Instant Collision
+    for (let i = rocks.length - 1; i >= 0; i--) {
+        const r = rocks[i];
         r.update();
         r.draw();
 
-        // INSTANT DEATH COLLISION: Rock hits Ship
-        const distToShip = Math.hypot((player.x + player.w/2) - r.x, (player.y + player.h/2) - r.y);
+        // INSTANT DEATH CHECK
+        const distToShip = Math.hypot((ship.x + ship.w/2) - r.x, (ship.y + ship.h/2) - r.y);
         if (distToShip < r.radius + 15) {
-            rocks.splice(i, 1); // Remove the rock that hit you
+            rocks.splice(i, 1);
             lives--;
-            globalSpeedMult += 0.2; // Game gets harder on life loss
+            globalSpeedMult += 0.25; // Increase difficulty on death
             updateUI();
             if (lives <= 0) {
                 gameOver = true;
@@ -171,18 +194,18 @@ function loop() {
             continue;
         }
 
-        // Laser hits Rock
-        for(let j = lasers.length -1; j >= 0; j--) {
-            let l = lasers[j];
+        // Laser Collision
+        for (let j = lasers.length - 1; j >= 0; j--) {
+            const l = lasers[j];
             const dist = Math.hypot(l.x - r.x, l.y - r.y);
             if (dist < r.radius) {
-                if (r.level === 2) {
-                    rocks.push(new Rock(r.x, r.y, r.radius/2, 1));
-                    rocks.push(new Rock(r.x, r.y, r.radius/2, 1));
+                if (r.level > 1) {
+                    rocks.push(new Rock(r.x, r.y, r.radius * 0.5, 1));
+                    rocks.push(new Rock(r.x, r.y, r.radius * 0.5, 1));
                 }
                 rocks.splice(i, 1);
                 lasers.splice(j, 1);
-                score += 10;
+                score += (r.level === 2) ? 10 : 20;
                 updateUI();
                 break;
             }
@@ -194,25 +217,7 @@ function loop() {
     requestAnimationFrame(loop);
 }
 
-function updateUI() {
-    document.getElementById('score').innerText = score;
-    document.getElementById('lives').innerText = lives;
-    document.getElementById('speedDisplay').innerText = globalSpeedMult.toFixed(1);
-}
-
-window.addEventListener('resize', () => {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    player.updatePos();
-    initStars();
-});
-
-// Start
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-player.updatePos();
-initStars();
-handleInput();
+init();
 loop();
 </script>
 </body>
