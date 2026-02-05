@@ -2,15 +2,15 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Starship Defender - Hardcore</title>
+    <title>Starship Defender - Arrowhead</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; color: #00ff00; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; color: #00ffcc; }
         canvas { display: block; }
         #ui { position: absolute; top: 20px; left: 20px; pointer-events: none; }
-        .stat-box { margin-bottom: 5px; font-weight: bold; font-size: 1.2rem; text-shadow: 0 0 5px #00ff00; }
+        .stat-box { margin-bottom: 5px; font-weight: bold; font-size: 1.2rem; text-shadow: 0 0 5px #00ffcc; }
         #game-over { 
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            text-align: center; display: none; background: rgba(0,0,0,0.9); padding: 30px; border: 2px solid #ff0000;
+            text-align: center; display: none; background: rgba(0,0,0,0.9); padding: 40px; border: 2px solid #ff0000;
         }
     </style>
 </head>
@@ -23,7 +23,7 @@
 </div>
 
 <div id="game-over">
-    <h1 style="color: #ff0000;">HULL BREACHED</h1>
+    <h1 style="color: #ff0000; font-size: 3rem;">HULL BREACHED</h1>
     <p>FINAL SCORE: <span id="finalScore">0</span></p>
     <p>PRESS 'R' TO REBOOT SYSTEM</p>
 </div>
@@ -47,26 +47,35 @@ let stars = [];
 
 class Ship {
     constructor() {
-        this.w = 50;
-        this.h = 40;
+        this.w = 40;
+        this.h = 50;
         this.speed = 10;
         this.resetPos();
     }
     resetPos() {
         this.x = canvas.width / 2 - this.w / 2;
-        this.y = canvas.height - this.h - 30; // Solidly anchored at bottom
+        this.y = canvas.height - this.h - 30; 
     }
     draw() {
+        ctx.strokeStyle = "#00ffff";
         ctx.fillStyle = "#00ffff";
+        ctx.lineWidth = 2;
+        
+        // Arrowhead Shape
         ctx.beginPath();
-        ctx.moveTo(this.x + this.w / 2, this.y);
-        ctx.lineTo(this.x, this.y + this.h);
-        ctx.lineTo(this.x + this.w, this.y + this.h);
+        ctx.moveTo(this.x + this.w / 2, this.y); // Pointy tip
+        ctx.lineTo(this.x, this.y + this.h);     // Bottom left
+        ctx.lineTo(this.x + this.w / 2, this.y + this.h - 12); // Middle notch
+        ctx.lineTo(this.x + this.w, this.y + this.h); // Bottom right
         ctx.closePath();
         ctx.fill();
-        // Engine Flare
+        
+        // Small engine glow
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = "#ffaa00";
         ctx.fillStyle = "#ffaa00";
-        ctx.fillRect(this.x + this.w/2 - 5, this.y + this.h, 10, 4);
+        ctx.fillRect(this.x + this.w/2 - 4, this.y + this.h - 5, 8, 8);
+        ctx.shadowBlur = 0;
     }
     update() {
         if (keys['ArrowLeft'] && this.x > 0) this.x -= this.speed;
@@ -77,18 +86,37 @@ class Ship {
 class Rock {
     constructor(x, y, radius, level) {
         this.x = x || Math.random() * canvas.width;
-        this.y = y || -50;
+        this.y = y || -100;
         this.radius = radius || 30 + Math.random() * 20;
         this.level = level || 2; 
-        this.vx = (Math.random() - 0.5) * 2;
         this.vy = (Math.random() * 2 + 2) * globalSpeedMult;
+        this.vx = (Math.random() - 0.5) * 2;
+        
+        // Generate random jagged sides
+        this.points = [];
+        const sides = 6 + Math.floor(Math.random() * 5); 
+        for(let i=0; i < sides; i++) {
+            const angle = (i / sides) * Math.PI * 2;
+            const variation = 0.7 + Math.random() * 0.3;
+            this.points.push({
+                x: Math.cos(angle) * this.radius * variation,
+                y: Math.sin(angle) * this.radius * variation
+            });
+        }
     }
     draw() {
         ctx.strokeStyle = this.level === 2 ? "#ffffff" : "#ff4444";
         ctx.lineWidth = 2;
+        ctx.save();
+        ctx.translate(this.x, this.y);
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.moveTo(this.points[0].x, this.points[0].y);
+        for(let i=1; i < this.points.length; i++) {
+            ctx.lineTo(this.points[i].x, this.points[i].y);
+        }
+        ctx.closePath();
         ctx.stroke();
+        ctx.restore();
     }
     update() {
         this.x += this.vx;
@@ -98,7 +126,7 @@ class Rock {
 
 function initStars() {
     stars = [];
-    for(let i=0; i<100; i++) {
+    for(let i=0; i<80; i++) {
         stars.push({
             x: Math.random() * canvas.width,
             y: Math.random() * canvas.height,
@@ -147,7 +175,7 @@ function loop() {
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 1. Move/Draw Stars
+    // 1. Parallax Stars
     ctx.fillStyle = "#fff";
     stars.forEach(s => {
         s.y += s.speed * globalSpeedMult;
@@ -158,9 +186,9 @@ function loop() {
     ship.update();
     ship.draw();
 
-    // 2. Spawn Rocks
+    // 2. Rock Spawning
     spawnTimer++;
-    if (spawnTimer > 40 / globalSpeedMult) {
+    if (spawnTimer > 35 / globalSpeedMult) {
         rocks.push(new Rock());
         spawnTimer = 0;
     }
@@ -173,7 +201,7 @@ function loop() {
         if (lasers[i].y < 0) lasers.splice(i, 1);
     }
 
-    // 4. Rocks & Instant Collision
+    // 4. Rocks & Collision
     for (let i = rocks.length - 1; i >= 0; i--) {
         const r = rocks[i];
         r.update();
@@ -184,7 +212,7 @@ function loop() {
         if (distToShip < r.radius + 15) {
             rocks.splice(i, 1);
             lives--;
-            globalSpeedMult += 0.25; // Increase difficulty on death
+            globalSpeedMult += 0.25; 
             updateUI();
             if (lives <= 0) {
                 gameOver = true;
@@ -194,7 +222,7 @@ function loop() {
             continue;
         }
 
-        // Laser Collision
+        // Laser Hits
         for (let j = lasers.length - 1; j >= 0; j--) {
             const l = lasers[j];
             const dist = Math.hypot(l.x - r.x, l.y - r.y);
@@ -211,7 +239,7 @@ function loop() {
             }
         }
 
-        if (r.y > canvas.height + 50) rocks.splice(i, 1);
+        if (r.y > canvas.height + 100) rocks.splice(i, 1);
     }
 
     requestAnimationFrame(loop);
