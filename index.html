@@ -31,6 +31,53 @@
 <canvas id="gameCanvas"></canvas>
 
 <script>
+// --- AUDIO ENGINE ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+const SFX = {
+    laser() {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.1);
+    },
+    explode(isSmall) {
+        const duration = isSmall ? 0.2 : 0.4;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(isSmall ? 150 : 100, audioCtx.currentTime);
+        osc.frequency.linearRampToValueAtTime(10, audioCtx.currentTime + duration);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    },
+    damage() {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+        osc.frequency.linearRampToValueAtTime(400, audioCtx.currentTime + 0.1);
+        osc.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.3);
+    }
+};
+
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
@@ -61,16 +108,14 @@ class Ship {
         ctx.fillStyle = "#00ffff";
         ctx.lineWidth = 2;
         
-        // Arrowhead Shape
         ctx.beginPath();
-        ctx.moveTo(this.x + this.w / 2, this.y); // Pointy tip
-        ctx.lineTo(this.x, this.y + this.h);     // Bottom left
-        ctx.lineTo(this.x + this.w / 2, this.y + this.h - 12); // Middle notch
-        ctx.lineTo(this.x + this.w, this.y + this.h); // Bottom right
+        ctx.moveTo(this.x + this.w / 2, this.y); 
+        ctx.lineTo(this.x, this.y + this.h);     
+        ctx.lineTo(this.x + this.w / 2, this.y + this.h - 12); 
+        ctx.lineTo(this.x + this.w, this.y + this.h); 
         ctx.closePath();
         ctx.fill();
         
-        // Small engine glow
         ctx.shadowBlur = 10;
         ctx.shadowColor = "#ffaa00";
         ctx.fillStyle = "#ffaa00";
@@ -92,7 +137,6 @@ class Rock {
         this.vy = (Math.random() * 2 + 2) * globalSpeedMult;
         this.vx = (Math.random() - 0.5) * 2;
         
-        // Generate random jagged sides
         this.points = [];
         const sides = 6 + Math.floor(Math.random() * 5); 
         for(let i=0; i < sides; i++) {
@@ -147,9 +191,13 @@ function init() {
 
 window.addEventListener('resize', init);
 window.addEventListener('keydown', e => {
+    // Resume audio context on user interaction (browser requirement)
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
     keys[e.code] = true;
     if (e.code === 'Space' && !gameOver) {
         lasers.push({ x: ship.x + ship.w / 2, y: ship.y, speed: 14 });
+        SFX.laser();
     }
     if (e.code === 'KeyR' && gameOver) reboot();
 });
@@ -175,7 +223,6 @@ function loop() {
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 1. Parallax Stars
     ctx.fillStyle = "#fff";
     stars.forEach(s => {
         s.y += s.speed * globalSpeedMult;
@@ -186,14 +233,12 @@ function loop() {
     ship.update();
     ship.draw();
 
-    // 2. Rock Spawning
     spawnTimer++;
     if (spawnTimer > 35 / globalSpeedMult) {
         rocks.push(new Rock());
         spawnTimer = 0;
     }
 
-    // 3. Lasers
     for (let i = lasers.length - 1; i >= 0; i--) {
         lasers[i].y -= lasers[i].speed;
         ctx.fillStyle = "#ff00ff";
@@ -201,17 +246,16 @@ function loop() {
         if (lasers[i].y < 0) lasers.splice(i, 1);
     }
 
-    // 4. Rocks & Collision
     for (let i = rocks.length - 1; i >= 0; i--) {
         const r = rocks[i];
         r.update();
         r.draw();
 
-        // INSTANT DEATH CHECK
         const distToShip = Math.hypot((ship.x + ship.w/2) - r.x, (ship.y + ship.h/2) - r.y);
         if (distToShip < r.radius + 15) {
             rocks.splice(i, 1);
             lives--;
+            SFX.damage(); // Sound for taking a hit
             globalSpeedMult += 0.25; 
             updateUI();
             if (lives <= 0) {
@@ -222,11 +266,11 @@ function loop() {
             continue;
         }
 
-        // Laser Hits
         for (let j = lasers.length - 1; j >= 0; j--) {
             const l = lasers[j];
             const dist = Math.hypot(l.x - r.x, l.y - r.y);
             if (dist < r.radius) {
+                SFX.explode(r.level === 1); // Sound for hitting a rock
                 if (r.level > 1) {
                     rocks.push(new Rock(r.x, r.y, r.radius * 0.5, 1));
                     rocks.push(new Rock(r.x, r.y, r.radius * 0.5, 1));
