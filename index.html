@@ -1,83 +1,91 @@
-Here is the complete updated code for your game. I have added responsive, retro-styled touchscreen buttons at the bottom of the screen (Left, Right, and Fire).
-
-To make it fully playable on mobile, the ship's position has been adjusted upward slightly so it doesn't get covered by the buttons, and tapping the **FIRE** button while the game is over will automatically trigger a system reboot.
-
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Starship Defender - Arrowhead</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; color: #00ffcc; }
-        canvas { display: block; }
-        #ui { position: absolute; top: 20px; left: 20px; pointer-events: none; }
-        .stat-box { margin-bottom: 5px; font-weight: bold; font-size: 1.2rem; text-shadow: 0 0 5px #00ffcc; }
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: #000; 
+            font-family: 'Courier New', monospace; 
+            color: #00ffcc;
+            touch-action: none; /* Prevents mobile pull-to-refresh and scrolling */
+            -webkit-touch-callout: none;
+            user-select: none;
+        }
+        canvas { 
+            display: block; 
+            width: 100vw;
+            height: 100vh;
+        }
+        #ui { position: absolute; top: 20px; left: 20px; pointer-events: none; z-index: 2; }
+        .stat-box { margin-bottom: 5px; font-weight: bold; font-size: 1.1rem; text-shadow: 0 0 5px #00ffcc; }
         
         #game-over { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            text-align: center; display: none; background: rgba(0,0,0,0.9); padding: 40px; border: 2px solid #ff0000;
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); 
+            text-align: center; display: none; background: rgba(0,0,0,0.9); padding: 30px; border: 2px solid #ff0000;
             z-index: 10;
+            width: 80%;
+            max-width: 400px;
+            box-sizing: border-box;
         }
 
-        /* --- TOUCH CONTROLS STYLE --- */
+        /* --- TOUCH CONTROLS --- */
         #touch-controls {
             position: absolute;
-            bottom: 30px;
+            bottom: 25px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
             justify-content: space-between;
-            width: 90%;
-            max-width: 600px;
-            pointer-events: none; /* Allows canvas interactions to pass through container */
+            width: 92%;
+            max-width: 500px;
+            pointer-events: none; 
             z-index: 5;
-            user-select: none;
-            -webkit-user-select: none;
         }
         .control-group {
             display: flex;
-            gap: 20px;
+            gap: 15px;
         }
         .btn {
             pointer-events: auto;
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(0, 0, 0, 0.7);
             border: 2px solid #00ffcc;
             color: #00ffcc;
-            width: 75px;
-            height: 75px;
-            font-size: 2rem;
+            width: 70px;
+            height: 70px;
+            font-size: 1.8rem;
             font-family: 'Courier New', monospace;
             font-weight: bold;
-            border-radius: 15px;
+            border-radius: 12px;
             text-shadow: 0 0 5px #00ffcc;
-            box-shadow: 0 0 15px rgba(0, 255, 204, 0.3);
+            box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
             outline: none;
-            touch-action: none; /* Prevents default browser zooming/scrolling on buttons */
+            touch-action: none; 
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: background 0.1s;
+            -webkit-tap-highlight-color: transparent;
         }
         .btn:active {
-            background: rgba(0, 255, 204, 0.4);
+            background: rgba(0, 255, 204, 0.3);
             color: #fff;
         }
         #btn-fire {
             border-color: #ff00ff;
             color: #ff00ff;
-            width: 130px;
-            font-size: 1.4rem;
+            width: 110px;
+            font-size: 1.3rem;
             text-shadow: 0 0 5px #ff00ff;
-            box-shadow: 0 0 15px rgba(255, 0, 255, 0.3);
+            box-shadow: 0 0 10px rgba(255, 0, 255, 0.2);
         }
         #btn-fire:active {
-            background: rgba(255, 0, 255, 0.4);
+            background: rgba(255, 0, 255, 0.3);
             color: #fff;
         }
-
-        /* Hide touch controls on desktops if needed, though they remain harmlessly visible here */
     </style>
 </head>
 <body>
@@ -89,9 +97,9 @@ To make it fully playable on mobile, the ship's position has been adjusted upwar
 </div>
 
 <div id="game-over">
-    <h1 style="color: #ff0000; font-size: 3rem;">HULL BREACHED</h1>
+    <h1 style="color: #ff0000; font-size: 2.2rem; margin-top: 0;">HULL BREACHED</h1>
     <p>FINAL SCORE: <span id="finalScore">0</span></p>
-    <p>PRESS 'R' OR TAP 'FIRE' TO REBOOT SYSTEM</p>
+    <p style="font-size: 0.9rem;">PRESS 'R' OR TAP 'FIRE' TO REBOOT</p>
 </div>
 
 <div id="touch-controls">
@@ -170,13 +178,13 @@ class Ship {
     constructor() {
         this.w = 40;
         this.h = 50;
-        this.speed = 10;
+        this.speed = 9;
         this.resetPos();
     }
     resetPos() {
         this.x = canvas.width / 2 - this.w / 2;
-        // Adjusted Y position upwards to clear the touch buttons cleanly
-        this.y = canvas.height - this.h - 130; 
+        // Pushed up safely out of the way of the 70px high touch buttons layout
+        this.y = canvas.height - this.h - 140; 
     }
     draw() {
         ctx.strokeStyle = "#00ffff";
@@ -207,7 +215,7 @@ class Rock {
     constructor(x, y, radius, level) {
         this.x = x || Math.random() * canvas.width;
         this.y = y || -100;
-        this.radius = radius || 30 + Math.random() * 20;
+        this.radius = radius || 25 + Math.random() * 20;
         this.level = level || 2; 
         this.vy = (Math.random() * 2 + 2) * globalSpeedMult;
         this.vx = (Math.random() - 0.5) * 2;
@@ -245,7 +253,7 @@ class Rock {
 
 function initStars() {
     stars = [];
-    for(let i=0; i<80; i++) {
+    for(let i=0; i<60; i++) {
         stars.push({
             x: Math.random() * canvas.width,
             y: Math.random() * canvas.height,
@@ -264,7 +272,6 @@ function init() {
     initStars();
 }
 
-// Global utility helper to unlock web audio on mobile devices
 function verifyAudioContext() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
 }
@@ -281,13 +288,11 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => keys[e.code] = false);
 
-
-// --- TOUCH/POINTER EVENT HANDLERS ---
+// --- UNIFIED POINTER CONTROLS (Fixes mobile touch lag) ---
 const btnLeft = document.getElementById('btn-left');
 const btnRight = document.getElementById('btn-right');
 const btnFire = document.getElementById('btn-fire');
 
-// Left Pointer Setup
 btnLeft.addEventListener('pointerdown', e => {
     e.preventDefault();
     verifyAudioContext();
@@ -296,7 +301,6 @@ btnLeft.addEventListener('pointerdown', e => {
 btnLeft.addEventListener('pointerup', e => { e.preventDefault(); keys['ArrowLeft'] = false; });
 btnLeft.addEventListener('pointercancel', e => { e.preventDefault(); keys['ArrowLeft'] = false; });
 
-// Right Pointer Setup
 btnRight.addEventListener('pointerdown', e => {
     e.preventDefault();
     verifyAudioContext();
@@ -305,7 +309,6 @@ btnRight.addEventListener('pointerdown', e => {
 btnRight.addEventListener('pointerup', e => { e.preventDefault(); keys['ArrowRight'] = false; });
 btnRight.addEventListener('pointercancel', e => { e.preventDefault(); keys['ArrowRight'] = false; });
 
-// Fire / Reboot Pointer Setup
 btnFire.addEventListener('pointerdown', e => {
     e.preventDefault();
     verifyAudioContext();
@@ -317,12 +320,12 @@ btnFire.addEventListener('pointerdown', e => {
     }
 });
 
-
 function reboot() {
     score = 0; lives = 5; globalSpeedMult = 1.0;
     rocks = []; lasers = []; gameOver = false;
     document.getElementById('game-over').style.display = 'none';
     updateUI();
+    ship.resetPos();
     loop();
 }
 
