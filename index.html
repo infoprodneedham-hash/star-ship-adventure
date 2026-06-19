@@ -1,3 +1,8 @@
+Here is the complete updated code for your game. I have added responsive, retro-styled touchscreen buttons at the bottom of the screen (Left, Right, and Fire).
+
+To make it fully playable on mobile, the ship's position has been adjusted upward slightly so it doesn't get covered by the buttons, and tapping the **FIRE** button while the game is over will automatically trigger a system reboot.
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,10 +13,71 @@
         canvas { display: block; }
         #ui { position: absolute; top: 20px; left: 20px; pointer-events: none; }
         .stat-box { margin-bottom: 5px; font-weight: bold; font-size: 1.2rem; text-shadow: 0 0 5px #00ffcc; }
+        
         #game-over { 
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
             text-align: center; display: none; background: rgba(0,0,0,0.9); padding: 40px; border: 2px solid #ff0000;
+            z-index: 10;
         }
+
+        /* --- TOUCH CONTROLS STYLE --- */
+        #touch-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            justify-content: space-between;
+            width: 90%;
+            max-width: 600px;
+            pointer-events: none; /* Allows canvas interactions to pass through container */
+            z-index: 5;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .control-group {
+            display: flex;
+            gap: 20px;
+        }
+        .btn {
+            pointer-events: auto;
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid #00ffcc;
+            color: #00ffcc;
+            width: 75px;
+            height: 75px;
+            font-size: 2rem;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            border-radius: 15px;
+            text-shadow: 0 0 5px #00ffcc;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.3);
+            outline: none;
+            touch-action: none; /* Prevents default browser zooming/scrolling on buttons */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+        .btn:active {
+            background: rgba(0, 255, 204, 0.4);
+            color: #fff;
+        }
+        #btn-fire {
+            border-color: #ff00ff;
+            color: #ff00ff;
+            width: 130px;
+            font-size: 1.4rem;
+            text-shadow: 0 0 5px #ff00ff;
+            box-shadow: 0 0 15px rgba(255, 0, 255, 0.3);
+        }
+        #btn-fire:active {
+            background: rgba(255, 0, 255, 0.4);
+            color: #fff;
+        }
+
+        /* Hide touch controls on desktops if needed, though they remain harmlessly visible here */
     </style>
 </head>
 <body>
@@ -25,7 +91,15 @@
 <div id="game-over">
     <h1 style="color: #ff0000; font-size: 3rem;">HULL BREACHED</h1>
     <p>FINAL SCORE: <span id="finalScore">0</span></p>
-    <p>PRESS 'R' TO REBOOT SYSTEM</p>
+    <p>PRESS 'R' OR TAP 'FIRE' TO REBOOT SYSTEM</p>
+</div>
+
+<div id="touch-controls">
+    <div class="control-group">
+        <button class="btn" id="btn-left">◀</button>
+        <button class="btn" id="btn-right">▶</button>
+    </div>
+    <button class="btn" id="btn-fire">FIRE</button>
 </div>
 
 <canvas id="gameCanvas"></canvas>
@@ -101,7 +175,8 @@ class Ship {
     }
     resetPos() {
         this.x = canvas.width / 2 - this.w / 2;
-        this.y = canvas.height - this.h - 30; 
+        // Adjusted Y position upwards to clear the touch buttons cleanly
+        this.y = canvas.height - this.h - 130; 
     }
     draw() {
         ctx.strokeStyle = "#00ffff";
@@ -189,11 +264,14 @@ function init() {
     initStars();
 }
 
+// Global utility helper to unlock web audio on mobile devices
+function verifyAudioContext() {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
 window.addEventListener('resize', init);
 window.addEventListener('keydown', e => {
-    // Resume audio context on user interaction (browser requirement)
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-
+    verifyAudioContext();
     keys[e.code] = true;
     if (e.code === 'Space' && !gameOver) {
         lasers.push({ x: ship.x + ship.w / 2, y: ship.y, speed: 14 });
@@ -202,6 +280,43 @@ window.addEventListener('keydown', e => {
     if (e.code === 'KeyR' && gameOver) reboot();
 });
 window.addEventListener('keyup', e => keys[e.code] = false);
+
+
+// --- TOUCH/POINTER EVENT HANDLERS ---
+const btnLeft = document.getElementById('btn-left');
+const btnRight = document.getElementById('btn-right');
+const btnFire = document.getElementById('btn-fire');
+
+// Left Pointer Setup
+btnLeft.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    verifyAudioContext();
+    keys['ArrowLeft'] = true;
+});
+btnLeft.addEventListener('pointerup', e => { e.preventDefault(); keys['ArrowLeft'] = false; });
+btnLeft.addEventListener('pointercancel', e => { e.preventDefault(); keys['ArrowLeft'] = false; });
+
+// Right Pointer Setup
+btnRight.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    verifyAudioContext();
+    keys['ArrowRight'] = true;
+});
+btnRight.addEventListener('pointerup', e => { e.preventDefault(); keys['ArrowRight'] = false; });
+btnRight.addEventListener('pointercancel', e => { e.preventDefault(); keys['ArrowRight'] = false; });
+
+// Fire / Reboot Pointer Setup
+btnFire.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    verifyAudioContext();
+    if (!gameOver) {
+        lasers.push({ x: ship.x + ship.w / 2, y: ship.y, speed: 14 });
+        SFX.laser();
+    } else {
+        reboot();
+    }
+});
+
 
 function reboot() {
     score = 0; lives = 5; globalSpeedMult = 1.0;
@@ -255,7 +370,7 @@ function loop() {
         if (distToShip < r.radius + 15) {
             rocks.splice(i, 1);
             lives--;
-            SFX.damage(); // Sound for taking a hit
+            SFX.damage(); 
             globalSpeedMult += 0.25; 
             updateUI();
             if (lives <= 0) {
@@ -270,7 +385,7 @@ function loop() {
             const l = lasers[j];
             const dist = Math.hypot(l.x - r.x, l.y - r.y);
             if (dist < r.radius) {
-                SFX.explode(r.level === 1); // Sound for hitting a rock
+                SFX.explode(r.level === 1); 
                 if (r.level > 1) {
                     rocks.push(new Rock(r.x, r.y, r.radius * 0.5, 1));
                     rocks.push(new Rock(r.x, r.y, r.radius * 0.5, 1));
@@ -294,3 +409,5 @@ loop();
 </script>
 </body>
 </html>
+
+```
